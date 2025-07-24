@@ -1,0 +1,163 @@
+name: ffigen
+
+on:
+  # Run on PRs and pushes to the default branch, in either the ffigen directory,
+  # or the objective_c directory.
+  push:
+    branches: [main, stable]
+    paths:
+      - '.github/workflows/ffigen.yml'
+      - 'pkgs/ffigen/**'
+      - 'pkgs/objective_c/**'
+  pull_request:
+    branches: [main, stable]
+    paths:
+      - '.github/workflows/ffigen.yml'
+      - 'pkgs/ffigen/**'
+      - 'pkgs/objective_c/**'
+  schedule:
+    - cron: "0 0 * * 0"
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  # Check code formatting and static analysis on a single OS (macos).
+  analyze:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - id: install
+        name: Install dependencies
+        run: flutter pub get && flutter pub get --directory="example/shared_bindings" && flutter pub get --directory="../objective_c"
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+        if: always() && steps.install.outcome == 'success'
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart
+      - name: Analyze code
+        run: flutter analyze --fatal-infos
+
+  test-linux:
+    needs: analyze
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Install libclang-14-dev
+        run: sudo apt-get install libclang-14-dev
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart
+      - name: Run VM tests
+        run: dart test
+
+  # Keep in sync with ffigen_weekly.yaml:test-mac-arm64
+  test-mac:
+    needs: analyze
+    runs-on: 'macos-latest'
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get && flutter pub get --directory="../objective_c"
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart
+      - name: Run VM tests and collect coverage
+        run: dart run coverage:test_with_coverage --scope-output=ffigen --scope-output=objective_c
+      - name: Upload coverage
+        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8
+        with:
+          flag-name: ffigen
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel: true
+          path-to-lcov: pkgs/ffigen/coverage/lcov.info
+      - name: Upload coverage
+        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8
+        with:
+          carryforward: "ffigen,jni,jnigen,native_assets_builder_macos,native_assets_builder_ubuntu,native_assets_builder_windows,native_assets_cli_macos,native_assets_cli_ubuntu,native_assets_cli_windows,native_toolchain_c_macos,native_toolchain_c_ubuntu,native_toolchain_c_windows,objective_c,swift2objc"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
+
+  test-mac-flutter:
+    needs: analyze
+    runs-on: 'macos-latest'
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get && flutter pub get --directory="../objective_c"
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart --main-thread-dispatcher
+      - name: Run Flutter tests
+        run: flutter test
+
+  test-windows:
+    needs: analyze
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart
+      - name: Run VM tests
+        run: dart test
+
+  # Sanity check the latest `flutter create --template plugin_ffi`.
+  # This will break if we change the Flutter template or the generated code.
+  # But, getting libclang on the LUCI infrastructure has proven to be
+  # non-trivial. See discussion on
+  # https://github.com/flutter/flutter/issues/105513.
+  # If we need to change the generated code, we should temporarily disable this
+  # test, or temporarily disable the requirement for all bots to be green to
+  # merge PRs.
+  # Running this sanity check on one OS should be sufficient. Chosing Windows
+  # because it is the most likely to break.
+  test-windows-flutter:
+    needs: analyze
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: "master"
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart
+      - name: Run VM tests
+        run: flutter pub run test test_flutter/

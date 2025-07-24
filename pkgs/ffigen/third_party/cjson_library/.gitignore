@@ -1,0 +1,5 @@
+# Xcode tooling generated via `cmake -G Xcode .`.
+cjson_library.xcodeproj/
+
+# Xcode generated build and output directories.
+cjson_library.build/

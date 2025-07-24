@@ -1,0 +1,39 @@
+# Run the ffigen tests on apple silicon once a week. Unlike the other GitHub
+# CI hosts, this one isn't free, so we don't run it on every commit.
+
+name: ffigen_weekly
+
+on:
+  # Run once a week.
+  push:
+    branches: [main, stable]
+    paths:
+      - '.github/workflows/ffigen_weekly.yml'
+  pull_request:
+    branches: [main, stable]
+    paths:
+      - '.github/workflows/ffigen_weekly.yml'
+  schedule:
+    - cron: "0 0 * * 0"
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  # Keep in sync with ffigen.yaml:test-mac
+  test-mac-arm64:
+    runs-on: 'macos-14-large' # x64
+    defaults:
+      run:
+        working-directory: pkgs/ffigen/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: subosito/flutter-action@74af56c5ed2697ba4621264652728e8d217e53d3
+        with:
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get && flutter pub get --directory="../objective_c"
+      - name: Build test dylib and bindings
+        run: dart test/setup.dart --main-thread-dispatcher
+      - name: Run VM tests
+        run: flutter test
