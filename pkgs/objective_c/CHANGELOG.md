@@ -1,9 +1,67 @@
-## 5.0.0-wip
+## 9.0.0-wip
+
+- Use ffigen 20.0.0
+
+## 8.1.0
+
+- Bump minimum Dart version to 3.8.0.
+- Support the KVO pattern by adding `Observer`, `Observation`, and
+  `NSObject.addObserver`.
+- Remove a reference cycle between Dart and the `NSInputStream` returned by
+  `toNSInputStream`.
+
+## 8.0.0
+
+- Use ffigen 19.0.0
+- `NSArray` is now a Dart `Iterable` and `NSMutableArray` is now a Dart `List`.
+- `NSDictionary` and `NSMutableDictionary` are now Dart `Map`s.
+- `NSSet` and `NSMutableSet` are now Dart `Set`s.
+- Add `.toNSNumber()` extension method to `int`, `double`, and `num`.
+- Add `DateTime.toNSDate()` and `NSDate.toDateTime()` extension methods.
+- Add `CFStringRef.toDartString()` and `CFStringRef.toNSString()`.
+- Add `toObjCObject` and `toDartObject` that automatically convert between
+  supported Objective C and Dart types.
+- Added various interfaces, protocols, categories etc to the built ins, such as
+  NSPort and NSTimer.
+
+## 7.1.0
+
+- Use ffigen 18.1.0
+
+## 7.0.0
+
+- Use ffigen 18.0.0
+- `ObjCProtocolBuilder` supports implementing protocol methods directly using a
+  block.
+- Change how `ObjCProtocolBuilder` is implemented to fix
+  [a bug](https://github.com/dart-lang/http/issues/1702), by removing all uses
+  of `NSProxy`. This causes a couple of very minor breaking changes:
+  - __Breaking change__: It's no longer possible to add more methods to an
+    `ObjCProtocolBuilder` after `build()` has been invoked.
+  - __Breaking change__: Remove `NSProxy` from the bindings. Rename
+    `DOBJCDartProxyBuilder` to `DOBJCDartProtocolBuilder` and `DOBJCDartProxy`
+    to `DOBJCDartProtocol` and change their APIs. Users should not be using
+    these classes.
+- __Breaking change__: Some API names have changed due to ffigen's new duplicate
+  identifier renaming logic. `$` is now used as a delimiter, to match jnigen's
+  renaming logic.
+- Added a `checkOsVersion` function.
+
+## 6.0.0
+
+- Use ffigen 17.0.0
+
+## 5.0.0
 
 - __Breaking change__: Rename the `NSString` to `String` conversion method from
   `toString()` to `toDartString()`.
+- Add `ObjCProtocolBase`, which all code genned protocols implement.
 - Add various ObjC categories (extension methods) to the built in classes.
+- Add various ObjC protocols to the bindings.
 - Make all visible API types public.
+- Add a `osVersion` getter, which returns the current MacOS/iOS version.
+- Fixed [a bug](https://github.com/dart-lang/native/issues/1978) where Dart API
+  symbols could be null despite Dart_InitializeApiDL returning successfully.
 
 ## 4.1.0
 

@@ -2,23 +2,24 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// TODO: Should we share this with ffigen and move it to an unpublished util
-// package in this repo?
-
 // ignore_for_file: avoid_catching_errors
 
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
+import 'package:native_test_helpers/native_test_helpers.dart';
 import 'package:objective_c/objective_c.dart';
-import 'package:objective_c/src/internal.dart' as internal_for_testing
+import 'package:objective_c/src/internal.dart'
+    as internal_for_testing
     show isValidClass;
+import 'package:path/path.dart' as p;
 
 final _executeInternalCommand = () {
   try {
     return DynamicLibrary.process()
         .lookup<NativeFunction<Void Function(Pointer<Char>, Pointer<Void>)>>(
-            'Dart_ExecuteInternalCommand')
+          'Dart_ExecuteInternalCommand',
+        )
         .asFunction<void Function(Pointer<Char>, Pointer<Void>)>();
   } on ArgumentError {
     return null;
@@ -33,11 +34,25 @@ void doGC() {
   calloc.free(gcNow);
 }
 
+@Native<Pointer<Void> Function()>(
+  isLeaf: true,
+  symbol: 'objc_autoreleasePoolPush',
+)
+external Pointer<Void> autoreleasePoolPush();
+
+@Native<Void Function(Pointer<Void>)>(
+  isLeaf: true,
+  symbol: 'objc_autoreleasePoolPop',
+)
+external void autoreleasePoolPop(Pointer<Void> pool);
+
 @Native<Int Function(Pointer<Void>)>(isLeaf: true, symbol: 'isReadableMemory')
 external int _isReadableMemory(Pointer<Void> ptr);
 
 @Native<Uint64 Function(Pointer<Void>)>(
-    isLeaf: true, symbol: 'getObjectRetainCount')
+  isLeaf: true,
+  symbol: 'getObjectRetainCount',
+)
 external int _getObjectRetainCount(Pointer<Void> object);
 
 int objectRetainCount(Pointer<ObjCObject> object) {
@@ -63,3 +78,8 @@ int objectRetainCount(Pointer<ObjCObject> object) {
   if (!internal_for_testing.isValidClass(clazz)) return 0;
   return _getObjectRetainCount(object.cast());
 }
+
+String pkgDir = findPackageRoot('objective_c').toFilePath();
+
+// TODO(https://github.com/dart-lang/native/issues/1068): Remove this.
+String testDylib = p.join(pkgDir, 'test', 'objective_c.dylib');

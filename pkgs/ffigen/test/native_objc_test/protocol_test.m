@@ -8,8 +8,18 @@
 
 #include "protocol_test.h"
 
+const char* class_getName(Class cls);
+
+const char* getClassName(void* cls) {
+  return class_getName((__bridge Class)cls);
+}
+
+void* getClass(id object) {
+  return (__bridge void*)[object class];
+}
+
 @implementation ProtocolConsumer : NSObject
-- (NSString*)callInstanceMethod:(id<MyProtocol>)protocol {
+- (NSString*)callInstanceMethod:(id<SuperProtocol>)protocol {
   return [protocol instanceMethod:@"Hello from ObjC" withDouble:3.14];
 }
 
@@ -38,6 +48,12 @@
     [protocol intPtrMethod:&x];
     [protocol voidMethod:x];
   });
+}
+
+- (int32_t)callTwoMethods:(id<MyProtocol, SecondaryProtocol>)protocol {
+  SomeStruct s = {123, 345};
+  int32_t x = [protocol optionalMethod:s];
+  return [protocol otherMethod:x b:1 c:10 d:100];
 }
 @end
 

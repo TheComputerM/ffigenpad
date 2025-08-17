@@ -107,6 +107,8 @@ functions:
     - clang_Cursor_getRawCommentText
     - clang_Cursor_getBriefCommentText
     - clang_getCursorLocation
+    - clang_getRangeStart
+    - clang_getRangeEnd
     - clang_getFileLocation
     - clang_getFileName
     - clang_getNumElements
@@ -134,3 +136,5 @@ functions:
     - clang_Type_getModifiedType
     - clang_Location_isInSystemHeader
     - clang_getClangVersion
+    - clang_Type_getNumObjCProtocolRefs
+    - clang_Type_getObjCProtocolDecl

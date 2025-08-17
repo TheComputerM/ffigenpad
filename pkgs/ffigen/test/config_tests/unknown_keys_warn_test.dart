@@ -13,19 +13,19 @@ void main() {
   group('unknown_keys_warn_test', () {
     setUpAll(() {
       final logArr = <String>[];
-      logToArray(logArr, Level.WARNING);
+      final logger = logToArray(logArr, Level.WARNING);
       testConfig('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'Warn for unknown keys.'
 ${strings.output}: 'unused'
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/packed_structs.h'
+    - '${absPath('test/header_parser_tests/packed_structs.h')}'
 'warn-1': 'warn'
 ${strings.typeMap}:
   'warn-2': 'warn'
   'warn-3': 'warn'
-        ''');
+        ''', logger: logger);
       logString = logArr.join('\n');
     });
     test('Warn for unknown keys.', () {

@@ -6,6 +6,7 @@ import 'package:ffigen/src/code_generator.dart';
 import 'package:ffigen/src/config_provider.dart';
 import 'package:ffigen/src/header_parser.dart' as parser;
 import 'package:ffigen/src/strings.dart' as strings;
+import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart' as yaml;
 
@@ -18,14 +19,16 @@ void main() {
     setUpAll(() {
       logWarnings();
       actual = parser.parse(
-        YamlConfig.fromYaml(yaml.loadYaml('''
+        testContext(
+          YamlConfig.fromYaml(
+            yaml.loadYaml('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'VarArgs Test'
 ${strings.output}: 'unused'
 
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/varargs.h'
+    - '${absPath('test/header_parser_tests/varargs.h')}'
 
 ${strings.functions}:
   ${strings.varArgFunctions}:
@@ -43,17 +46,24 @@ ${strings.functions}:
 
 ${strings.preamble}: |
   // ignore_for_file: camel_case_types
-        ''') as yaml.YamlMap),
+        ''')
+                as yaml.YamlMap,
+            Logger.root,
+          ),
+        ),
       );
     });
     test('Expected Bindings', () {
       matchLibraryWithExpected(
-          actual, 'header_parser_varargs_test_output.dart', [
-        'test',
-        'header_parser_tests',
-        'expected_bindings',
-        '_expected_varargs_bindings.dart'
-      ]);
+        actual,
+        'header_parser_varargs_test_output.dart',
+        [
+          'test',
+          'header_parser_tests',
+          'expected_bindings',
+          '_expected_varargs_bindings.dart',
+        ],
+      );
     });
   });
 }

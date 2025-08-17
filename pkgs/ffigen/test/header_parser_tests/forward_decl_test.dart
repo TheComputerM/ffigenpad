@@ -16,26 +16,31 @@ void main() {
     setUpAll(() {
       logWarnings(Level.SEVERE);
       actual = parser.parse(
-        testConfig('''
+        testContext(
+          testConfig('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'Forward Declaration Test'
 ${strings.output}: 'unused'
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/forward_decl.h'
+    - '${absPath('test/header_parser_tests/forward_decl.h')}'
 ${strings.ignoreSourceErrors}: true
         '''),
+        ),
       );
     });
 
     test('Expected bindings', () {
       matchLibraryWithExpected(
-          actual, 'header_parser_forward_decl_test_output.dart', [
-        'test',
-        'header_parser_tests',
-        'expected_bindings',
-        '_expected_forward_decl_bindings.dart'
-      ]);
+        actual,
+        'header_parser_forward_decl_test_output.dart',
+        [
+          'test',
+          'header_parser_tests',
+          'expected_bindings',
+          '_expected_forward_decl_bindings.dart',
+        ],
+      );
     });
   });
 }

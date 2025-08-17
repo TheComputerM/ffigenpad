@@ -1,3 +1,7 @@
+// Copyright (c) 2024, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 import 'package:path/path.dart' as path;
 
 import 'ast/_core/interfaces/declaration.dart';
@@ -41,7 +45,7 @@ class Config {
   /// Includes all declarations by default
   final bool Function(Declaration declaration) include;
 
-  static bool _defaultInclude(_) => true;
+  static bool _defaultInclude(Declaration _) => true;
 
   const Config(
       {required this.input,

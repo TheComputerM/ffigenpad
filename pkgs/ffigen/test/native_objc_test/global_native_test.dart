@@ -4,11 +4,11 @@
 
 // Objective C support is only available on mac.
 @TestOn('mac-os')
-
 import 'dart:ffi';
 import 'dart:io';
 
 import 'package:objective_c/objective_c.dart';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 import '../test_utils.dart';
@@ -19,8 +19,23 @@ void main() {
   group('global using @Native', () {
     setUpAll(() {
       // TODO(https://github.com/dart-lang/native/issues/1068): Remove this.
-      DynamicLibrary.open('../objective_c/test/objective_c.dylib');
-      final dylib = File('test/native_objc_test/objc_test.dylib');
+      DynamicLibrary.open(
+        path.join(
+          packagePathForTests,
+          '..',
+          'objective_c',
+          'test',
+          'objective_c.dylib',
+        ),
+      );
+      final dylib = File(
+        path.join(
+          packagePathForTests,
+          'test',
+          'native_objc_test',
+          'objc_test.dylib',
+        ),
+      );
       verifySetupFile(dylib);
       DynamicLibrary.open(dylib.absolute.path);
       generateBindingsForCoverage('global');
@@ -34,7 +49,7 @@ void main() {
     });
 
     Pointer<ObjCObject> globalObjectRefCountingInner() {
-      globalObject = NSObject.new1();
+      globalObject = NSObject();
       final obj1raw = globalObject!.ref.pointer;
 
       // TODO(https://github.com/dart-lang/native/issues/1435): Fix flakiness.
@@ -58,7 +73,7 @@ void main() {
     });
 
     (Pointer<ObjCBlockImpl>, Pointer<ObjCBlockImpl>)
-        globalBlockRefCountingInner() {
+    globalBlockRefCountingInner() {
       final blk1 = ObjCBlock_Int32_Int32.fromFunction((int x) => x * 10);
       globalBlock = blk1;
       final blk1raw = blk1.ref.pointer;

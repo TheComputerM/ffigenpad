@@ -4,9 +4,10 @@
 
 import 'dart:io';
 
+import 'package:code_assets/code_assets.dart';
+import 'package:hooks/hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
-import 'package:native_assets_cli/code_assets.dart';
 
 import 'ctool.dart';
 import 'language.dart';
@@ -17,17 +18,17 @@ import 'output_type.dart';
 import 'run_cbuilder.dart';
 
 /// Specification for linking an artifact with a C linker.
-//TODO(mosuem): This is currently only implemented for linux.
-// See also https://github.com/dart-lang/native/issues/1376
 class CLinker extends CTool implements Linker {
   final LinkerOptions linkerOptions;
 
   CLinker.library({
     required super.name,
+    super.packageName,
     super.assetName,
     required this.linkerOptions,
     super.sources = const [],
     super.includes = const [],
+    super.forcedIncludes = const [],
     super.frameworks = CTool.defaultFrameworks,
     super.libraries = const [],
     super.libraryDirectories = CTool.defaultLibraryDirectories,
@@ -51,17 +52,15 @@ class CLinker extends CTool implements Linker {
     required LinkOutputBuilder output,
     required Logger? logger,
   }) async {
-    if (OS.current != OS.linux || input.config.code.targetOS != OS.linux) {
-      throw UnsupportedError('Currently, only linux is supported for this '
-          'feature. See also https://github.com/dart-lang/native/issues/1376');
-    }
     final outDir = input.outputDirectory;
     final packageRoot = input.packageRoot;
     await Directory.fromUri(outDir).create(recursive: true);
-    final linkMode =
-        getLinkMode(linkModePreference ?? input.config.code.linkModePreference);
-    final libUri = outDir
-        .resolve(input.config.code.targetOS.libraryFileName(name, linkMode));
+    final linkMode = getLinkMode(
+      linkModePreference ?? input.config.code.linkModePreference,
+    );
+    final libUri = outDir.resolve(
+      input.config.code.targetOS.libraryFileName(name, linkMode),
+    );
     final sources = [
       for (final source in this.sources)
         packageRoot.resolveUri(Uri.file(source)),
@@ -99,14 +98,14 @@ class CLinker extends CTool implements Linker {
     await task.run();
 
     if (assetName != null) {
-      output.assets.code.add(CodeAsset(
-        package: input.packageName,
-        name: assetName!,
-        file: libUri,
-        linkMode: linkMode,
-        os: input.config.code.targetOS,
-        architecture: input.config.code.targetArchitecture,
-      ));
+      output.assets.code.add(
+        CodeAsset(
+          package: packageName ?? input.packageName,
+          name: assetName!,
+          file: libUri,
+          linkMode: linkMode,
+        ),
+      );
     }
     final includeFiles = await Stream.fromIterable(includes)
         .asyncExpand(

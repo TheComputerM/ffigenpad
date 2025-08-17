@@ -13,6 +13,7 @@ void main() {
     setUpAll(() {
       logWarnings(Level.SEVERE);
       actual = Library(
+        context: testContext(),
         name: 'Bindings',
         header:
             '// ignore_for_file: unused_element, camel_case_types, non_constant_identifier_names\n',
@@ -36,12 +37,15 @@ void main() {
     });
     test('declaration and symbol address conflict', () {
       matchLibraryWithExpected(
-          actual, 'collision_test_decl_symbol_address_collision_output.dart', [
-        'test',
-        'collision_tests',
-        'expected_bindings',
-        '_expected_decl_symbol_address_collision_bindings.dart'
-      ]);
+        actual,
+        'collision_test_decl_symbol_address_collision_output.dart',
+        [
+          'test',
+          'collision_tests',
+          'expected_bindings',
+          '_expected_decl_symbol_address_collision_bindings.dart',
+        ],
+      );
     });
   });
 }

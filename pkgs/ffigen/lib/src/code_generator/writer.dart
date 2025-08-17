@@ -2,17 +2,17 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 import '../code_generator.dart';
+import '../context.dart';
 import '../strings.dart' as strings;
+import 'unique_namer.dart';
 import 'utils.dart';
-
-final _logger = Logger('ffigen.code_generator.writer');
 
 /// To store generated String bindings.
 class Writer {
+  final Context context;
   final String? header;
 
   /// Holds bindings, which lookup symbols.
@@ -50,8 +50,9 @@ class Writer {
     }
 
     final import = _usedImports.firstWhere(
-        (element) => element.name == ffiImport.name,
-        orElse: () => ffiImport);
+      (element) => element.name == ffiImport.name,
+      orElse: () => ffiImport,
+    );
     _usedImports.add(import);
     return _ffiLibraryPrefix = import.prefix;
   }
@@ -63,8 +64,9 @@ class Writer {
     }
 
     final import = _usedImports.firstWhere(
-        (element) => element.name == ffiPkgImport.name,
-        orElse: () => ffiPkgImport);
+      (element) => element.name == ffiPkgImport.name,
+      orElse: () => ffiPkgImport,
+    );
     _usedImports.add(import);
     return _ffiPkgLibraryPrefix = import.prefix;
   }
@@ -76,15 +78,18 @@ class Writer {
     }
 
     final import = _usedImports.firstWhere(
-        (element) => element.name == objcPkgImport.name,
-        orElse: () => objcPkgImport);
+      (element) => element.name == objcPkgImport.name,
+      orElse: () => objcPkgImport,
+    );
     _usedImports.add(import);
     return _objcPkgPrefix = import.prefix;
   }
 
   late String selfImportPrefix = () {
-    final import = _usedImports
-        .firstWhere((element) => element.name == self.name, orElse: () => self);
+    final import = _usedImports.firstWhere(
+      (element) => element.name == self.name,
+      orElse: () => self,
+    );
     _usedImports.add(import);
     return import.prefix;
   }();
@@ -100,7 +105,8 @@ class Writer {
 
   /// Initial namers set after running constructor. Namers are reset to this
   /// initial state everytime [generate] is called.
-  late UniqueNamer _initialTopLevelUniqueNamer, _initialWrapperLevelUniqueNamer;
+  late UniqueNamer _initialTopLevelUniqueNamer;
+  late UniqueNamer _initialWrapperLevelUniqueNamer;
 
   /// Used by [Binding]s for generating required code.
   late UniqueNamer _topLevelUniqueNamer;
@@ -109,11 +115,6 @@ class Writer {
   UniqueNamer get wrapperLevelUniqueNamer => _wrapperLevelUniqueNamer;
   late UniqueNamer _objCLevelUniqueNamer;
   UniqueNamer get objCLevelUniqueNamer => _objCLevelUniqueNamer;
-
-  late String _arrayHelperClassPrefix;
-
-  /// Guaranteed to be a unique prefix.
-  String get arrayHelperClassPrefix => _arrayHelperClassPrefix;
 
   /// Set true after calling [generate]. Indicates if
   /// [generateSymbolOutputYamlMap] can be called.
@@ -134,16 +135,17 @@ class Writer {
     required this.generateForPackageObjectiveC,
     required this.silenceEnumWarning,
     required this.nativeEntryPoints,
+    required this.context,
   }) {
-    final globalLevelNameSet = noLookUpBindings.map((e) => e.name).toSet();
-    final wrapperLevelNameSet = lookUpBindings.map((e) => e.name).toSet();
-    final allNameSet = <String>{}
-      ..addAll(globalLevelNameSet)
-      ..addAll(wrapperLevelNameSet);
+    final globalLevelNames = noLookUpBindings.map((e) => e.name);
+    final wrapperLevelNames = lookUpBindings.map((e) => e.name);
 
-    _initialTopLevelUniqueNamer = UniqueNamer(globalLevelNameSet);
-    _initialWrapperLevelUniqueNamer = UniqueNamer(wrapperLevelNameSet);
-    final allLevelsUniqueNamer = UniqueNamer(allNameSet);
+    _initialTopLevelUniqueNamer = UniqueNamer()..markAllUsed(globalLevelNames);
+    _initialWrapperLevelUniqueNamer = UniqueNamer()
+      ..markAllUsed(wrapperLevelNames);
+    final allLevelsUniqueNamer = UniqueNamer()
+      ..markAllUsed(globalLevelNames)
+      ..markAllUsed(wrapperLevelNames);
 
     /// Wrapper class name must be unique among all names.
     _className = _resolveNameConflict(
@@ -159,7 +161,7 @@ class Writer {
         makeUnique: allLevelsUniqueNamer,
         markUsed: [
           _initialWrapperLevelUniqueNamer,
-          _initialTopLevelUniqueNamer
+          _initialTopLevelUniqueNamer,
         ],
       );
     }
@@ -168,7 +170,6 @@ class Writer {
     _lookupFuncIdentifier = _resolveNameConflict(
       name: '_lookup',
       makeUnique: _initialTopLevelUniqueNamer,
-      markUsed: [_initialTopLevelUniqueNamer],
     );
 
     /// Resolve name conflicts of identifiers used for SymbolAddresses.
@@ -180,29 +181,13 @@ class Writer {
     _symbolAddressVariableName = _resolveNameConflict(
       name: 'addresses',
       makeUnique: _initialWrapperLevelUniqueNamer,
-      markUsed: [_initialWrapperLevelUniqueNamer],
     );
     _symbolAddressLibraryVarName = _resolveNameConflict(
       name: '_library',
       makeUnique: _initialWrapperLevelUniqueNamer,
-      markUsed: [_initialWrapperLevelUniqueNamer],
     );
 
-    /// Finding a unique prefix for Array Helper Classes and store into
-    /// [_arrayHelperClassPrefix].
-    final base = 'ArrayHelper';
-    _arrayHelperClassPrefix = base;
-    var suffixInt = 0;
-    for (var i = 0; i < allNameSet.length; i++) {
-      if (allNameSet.elementAt(i).startsWith(_arrayHelperClassPrefix)) {
-        // Not a unique prefix, start over with a new suffix.
-        i = -1;
-        suffixInt++;
-        _arrayHelperClassPrefix = '$base$suffixInt';
-      }
-    }
-
-    _resetUniqueNamersNamers();
+    _resetUniqueNamers();
   }
 
   /// Resolved name conflict using [makeUnique] and marks the result as used in
@@ -220,10 +205,12 @@ class Writer {
   }
 
   /// Resets the namers to initial state. Namers are reset before generating.
-  void _resetUniqueNamersNamers() {
-    _topLevelUniqueNamer = _initialTopLevelUniqueNamer.clone();
-    _wrapperLevelUniqueNamer = _initialWrapperLevelUniqueNamer.clone();
-    _objCLevelUniqueNamer = UniqueNamer({});
+  void _resetUniqueNamers() {
+    _topLevelUniqueNamer = UniqueNamer(parent: _initialTopLevelUniqueNamer);
+    _wrapperLevelUniqueNamer = UniqueNamer(
+      parent: _initialWrapperLevelUniqueNamer,
+    );
+    _objCLevelUniqueNamer = UniqueNamer();
   }
 
   void markImportUsed(LibraryImport import) {
@@ -239,7 +226,7 @@ class Writer {
     final result = StringBuffer();
 
     // Reset unique namers to initial state.
-    _resetUniqueNamersNamers();
+    _resetUniqueNamers();
 
     // Reset [usedEnumCTypes].
     usedEnumCTypes.clear();
@@ -250,8 +237,11 @@ class Writer {
     }
 
     // Write auto generated declaration.
-    result.write(makeDoc(
-        'AUTO GENERATED FILE, DO NOT EDIT.\n\nGenerated by `package:ffigen`.'));
+    result.write(
+      makeDoc(
+        'AUTO GENERATED FILE, DO NOT EDIT.\n\nGenerated by `package:ffigen`.',
+      ),
+    );
 
     // Write lint ignore if not specified by user already.
     if (!RegExp(r'ignore_for_file:\s*type\s*=\s*lint').hasMatch(header ?? '')) {
@@ -272,28 +262,32 @@ class Writer {
     /// Write [lookUpBindings].
     if (lookUpBindings.isNotEmpty) {
       // Write doc comment for wrapper class.
-      if (classDocComment != null) {
-        s.write(makeDartDoc(classDocComment!));
-      }
+      s.write(makeDartDoc(classDocComment));
       // Write wrapper classs.
       s.write('class $_className{\n');
       // Write dylib.
       s.write('/// Holds the symbol lookup function.\n');
-      s.write('final $ffiLibraryPrefix.Pointer<T> Function<T extends '
-          '$ffiLibraryPrefix.NativeType>(String symbolName) '
-          '$lookupFuncIdentifier;\n');
+      s.write(
+        'final $ffiLibraryPrefix.Pointer<T> Function<T extends '
+        '$ffiLibraryPrefix.NativeType>(String symbolName) '
+        '$lookupFuncIdentifier;\n',
+      );
       s.write('\n');
       //Write doc comment for wrapper class constructor.
       s.write(makeDartDoc('The symbols are looked up in [dynamicLibrary].'));
       // Write wrapper class constructor.
-      s.write('$_className($ffiLibraryPrefix.DynamicLibrary dynamicLibrary): '
-          '$lookupFuncIdentifier = dynamicLibrary.lookup;\n\n');
+      s.write(
+        '$_className($ffiLibraryPrefix.DynamicLibrary dynamicLibrary): '
+        '$lookupFuncIdentifier = dynamicLibrary.lookup;\n\n',
+      );
       //Write doc comment for wrapper class named constructor.
       s.write(makeDartDoc('The symbols are looked up with [lookup].'));
       // Write wrapper class named constructor.
-      s.write('$_className.fromLookup($ffiLibraryPrefix.Pointer<T> '
-          'Function<T extends $ffiLibraryPrefix.NativeType>('
-          'String symbolName) lookup): $lookupFuncIdentifier = lookup;\n\n');
+      s.write(
+        '$_className.fromLookup($ffiLibraryPrefix.Pointer<T> '
+        'Function<T extends $ffiLibraryPrefix.NativeType>('
+        'String symbolName) lookup): $lookupFuncIdentifier = lookup;\n\n',
+      );
       for (final b in lookUpBindings) {
         s.write(b.toBindingString(this).string);
       }
@@ -333,13 +327,15 @@ class Writer {
     // Warn about Enum usage in API surface.
     if (!silenceEnumWarning && usedEnumCTypes.isNotEmpty) {
       final names = usedEnumCTypes.map((e) => e.originalName).toList()..sort();
-      _logger.severe('The integer type used for enums is '
-          'implementation-defined. FFIgen tries to mimic the integer sizes '
-          'chosen by the most common compilers for the various OS and '
-          'architecture combinations. To prevent any crashes, remove the '
-          'enums from your API surface. To rely on the (unsafe!) mimicking, '
-          'you can silence this warning by adding silence-enum-warning: true '
-          'to the FFIgen config. Affected enums:\n\t${names.join('\n\t')}');
+      context.logger.severe(
+        'The integer type used for enums is '
+        'implementation-defined. FFIgen tries to mimic the integer sizes '
+        'chosen by the most common compilers for the various OS and '
+        'architecture combinations. To prevent any crashes, remove the '
+        'enums from your API surface. To rely on the (unsafe!) mimicking, '
+        'you can silence this warning by adding silence-enum-warning: true '
+        'to the FFIgen config. Affected enums:\n\t${names.join('\n\t')}',
+      );
     }
 
     _canGenerateSymbolOutput = true;
@@ -347,24 +343,29 @@ class Writer {
   }
 
   List<Binding> get _allBindings => <Binding>[
-        ...noLookUpBindings,
-        ...ffiNativeBindings,
-        ...lookUpBindings,
-      ];
+    ...noLookUpBindings,
+    ...ffiNativeBindings,
+    ...lookUpBindings,
+  ];
 
   Map<String, dynamic> generateSymbolOutputYamlMap(String importFilePath) {
     final bindings = _allBindings;
     if (!canGenerateSymbolOutput) {
-      throw Exception('Invalid state: generateSymbolOutputYamlMap() '
-          'called before generate()');
+      throw Exception(
+        'Invalid state: generateSymbolOutputYamlMap() '
+        'called before generate()',
+      );
     }
 
     // Warn for macros.
     final hasMacroBindings = bindings.any(
-        (element) => element is Constant && element.usr.contains('@macro@'));
+      (element) => element is Constant && element.usr.contains('@macro@'),
+    );
     if (hasMacroBindings) {
-      _logger.info('Removing all Macros from symbol file since they cannot '
-          'be cross referenced reliably.');
+      context.logger.info(
+        'Removing all Macros from symbol file since they cannot '
+        'be cross referenced reliably.',
+      );
     }
 
     // Remove internal bindings and macros.
@@ -376,17 +377,15 @@ class Writer {
     // Sort bindings alphabetically by USR.
     bindings.sort((a, b) => a.usr.compareTo(b.usr));
 
-    final usesFfiNative = bindings
-        .whereType<Func>()
-        .any((element) => element.ffiNativeConfig.enabled);
+    final usesFfiNative = bindings.whereType<Func>().any(
+      (element) => element.ffiNativeConfig.enabled,
+    );
 
     return {
       strings.formatVersion: strings.symbolFileFormatVersion,
       strings.files: {
         importFilePath: {
-          strings.usedConfig: {
-            strings.ffiNative: usesFfiNative,
-          },
+          strings.usedConfig: {strings.ffiNative: usesFfiNative},
           strings.symbols: {
             for (final b in bindings) b.usr: _makeSymbolMapValue(b),
           },
@@ -431,18 +430,59 @@ class Writer {
     s.write('''
 #include <stdint.h>
 #import <Foundation/Foundation.h>
+#import <objc/message.h>
 ''');
 
     for (final entryPoint in nativeEntryPoints) {
       s.write(_objcImport(entryPoint, outDir));
     }
-    s.write('''
+    s.write(r'''
 
 #if !__has_feature(objc_arc)
 #error "This file must be compiled with ARC enabled"
 #endif
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
+
+typedef struct {
+  int64_t version;
+  void* (*newWaiter)(void);
+  void (*awaitWaiter)(void*);
+  void* (*currentIsolate)(void);
+  void (*enterIsolate)(void*);
+  void (*exitIsolate)(void);
+  int64_t (*getMainPortId)(void);
+  bool (*getCurrentThreadOwnsIsolate)(int64_t);
+} DOBJC_Context;
+
 id objc_retainBlock(id);
+
+#define BLOCKING_BLOCK_IMPL(ctx, BLOCK_SIG, INVOKE_DIRECT, INVOKE_LISTENER)    \
+  assert(ctx->version >= 1);                                                   \
+  void* targetIsolate = ctx->currentIsolate();                                 \
+  int64_t targetPort = ctx->getMainPortId == NULL ? 0 : ctx->getMainPortId();  \
+  return BLOCK_SIG {                                                           \
+    void* currentIsolate = ctx->currentIsolate();                              \
+    bool mayEnterIsolate =                                                     \
+        currentIsolate == NULL &&                                              \
+        ctx->getCurrentThreadOwnsIsolate != NULL &&                            \
+        ctx->getCurrentThreadOwnsIsolate(targetPort);                          \
+    if (currentIsolate == targetIsolate || mayEnterIsolate) {                  \
+      if (mayEnterIsolate) {                                                   \
+        ctx->enterIsolate(targetIsolate);                                      \
+      }                                                                        \
+      INVOKE_DIRECT;                                                           \
+      if (mayEnterIsolate) {                                                   \
+        ctx->exitIsolate();                                                    \
+      }                                                                        \
+    } else {                                                                   \
+      void* waiter = ctx->newWaiter();                                         \
+      INVOKE_LISTENER;                                                         \
+      ctx->awaitWaiter(waiter);                                                \
+    }                                                                          \
+  };
+
 ''');
 
     var empty = true;
@@ -453,6 +493,13 @@ id objc_retainBlock(id);
         s.write(bindingString.string);
       }
     }
+
+    s.write('''
+#undef BLOCKING_BLOCK_IMPL
+
+#pragma clang diagnostic pop
+''');
+
     return empty ? null : s.toString();
   }
 }
@@ -497,8 +544,10 @@ class SymbolAddressWriter {
       // Write Library object.
       sb.write('final ${w._className} ${w._symbolAddressLibraryVarName};\n');
       // Write Constructor.
-      sb.write('${w._symbolAddressClassName}('
-          'this.${w._symbolAddressLibraryVarName});\n');
+      sb.write(
+        '${w._symbolAddressClassName}('
+        'this.${w._symbolAddressLibraryVarName});\n',
+      );
     } else {
       // Native bindings are top-level, so we don't need a field here.
       sb.write('const ${w._symbolAddressClassName}();');

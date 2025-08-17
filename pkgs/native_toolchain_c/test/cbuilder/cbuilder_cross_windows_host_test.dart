@@ -3,13 +3,13 @@
 // BSD-style license that can be found in the LICENSE file.
 
 @TestOn('windows')
-@OnPlatform({
-  'windows': Timeout.factor(10),
-})
+@OnPlatform({'windows': Timeout.factor(10)})
 library;
 
 import 'dart:io';
 
+import 'package:code_assets/code_assets.dart';
+import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:native_toolchain_c/src/native_toolchain/clang.dart';
 import 'package:native_toolchain_c/src/native_toolchain/msvc.dart';
@@ -29,14 +29,15 @@ void main() async {
     msvc: () async => cCompiler,
     // Clang on Windows.
     clang: () async => CCompilerConfig(
-          archiver:
-              (await llvmAr.defaultResolver!.resolve(logger: logger)).first.uri,
-          compiler:
-              (await clang.defaultResolver!.resolve(logger: logger)).first.uri,
-          linker:
-              (await lld.defaultResolver!.resolve(logger: logger)).first.uri,
-          windows: WindowsCCompilerConfig(),
-        )
+      archiver: (await llvmAr.defaultResolver!.resolve(
+        logger: logger,
+      )).first.uri,
+      compiler: (await clang.defaultResolver!.resolve(
+        logger: logger,
+      )).first.uri,
+      linker: (await lld.defaultResolver!.resolve(logger: logger)).first.uri,
+      windows: WindowsCCompilerConfig(),
+    ),
   };
 
   const targets = [
@@ -49,8 +50,9 @@ void main() async {
   late Uri dumpbinUri;
 
   setUp(() async {
-    dumpbinUri =
-        (await dumpbin.defaultResolver!.resolve(logger: logger)).first.uri;
+    dumpbinUri = (await dumpbin.defaultResolver!.resolve(
+      logger: logger,
+    )).first.uri;
   });
 
   const dumpbinMachine = {
@@ -77,13 +79,13 @@ void main() async {
             (selectOptimizationLevel + 1) % optimizationLevels.length;
         final buildMode = BuildMode.values[selectBuildMode];
         selectBuildMode = (selectBuildMode + 1) % BuildMode.values.length;
-        test(
-            'CBuilder ${compiler.name} $linkMode library $target'
+        test('CBuilder ${compiler.name} $linkMode library $target'
             ' $optimizationLevel $buildMode', () async {
           final tempUri = await tempDirForTest();
           final tempUri2 = await tempDirForTest();
-          final addCUri =
-              packageUri.resolve('test/cbuilder/testfiles/add/src/add.c');
+          final addCUri = packageUri.resolve(
+            'test/cbuilder/testfiles/add/src/add.c',
+          );
           const name = 'add';
 
           final buildInputBuilder = BuildInputBuilder()
@@ -91,24 +93,21 @@ void main() async {
               packageName: name,
               packageRoot: tempUri,
               outputFile: tempUri.resolve('output.json'),
-              outputDirectory: tempUri,
               outputDirectoryShared: tempUri2,
             )
-            ..config.setupBuild(
-              linkingEnabled: false,
-              dryRun: false,
-            )
-            ..config.setupShared(buildAssetTypes: [CodeAsset.type])
-            ..config.setupCode(
-              targetOS: OS.windows,
-              targetArchitecture: target,
-              linkModePreference: linkMode == DynamicLoadingBundled()
-                  ? LinkModePreference.dynamic
-                  : LinkModePreference.static,
-              cCompiler: await (compilers[compiler]!)(),
+            ..config.setupBuild(linkingEnabled: false)
+            ..addExtension(
+              CodeAssetExtension(
+                targetOS: OS.windows,
+                targetArchitecture: target,
+                linkModePreference: linkMode == DynamicLoadingBundled()
+                    ? LinkModePreference.dynamic
+                    : LinkModePreference.static,
+                cCompiler: await (compilers[compiler]!)(),
+              ),
             );
 
-          final buildInput = BuildInput(buildInputBuilder.json);
+          final buildInput = buildInputBuilder.build();
           final buildOutput = BuildOutputBuilder();
 
           final cbuilder = CBuilder.library(
@@ -124,8 +123,9 @@ void main() async {
             logger: logger,
           );
 
-          final libUri =
-              tempUri.resolve(OS.windows.libraryFileName(name, linkMode));
+          final libUri = buildInput.outputDirectory.resolve(
+            OS.windows.libraryFileName(name, linkMode),
+          );
           expect(await File.fromUri(libUri).exists(), true);
           final result = await runProcess(
             executable: dumpbinUri,

@@ -1,3 +1,7 @@
+// Copyright (c) 2025, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 import '../../../ast/declarations/compounds/members/initializer_declaration.dart';
 import '../../_core/json.dart';
 import '../../_core/parsed_symbolgraph.dart';
@@ -21,15 +25,9 @@ InitializerDeclaration parseInitializerDeclaration(
 
   final info = parseFunctionInfo(declarationFragments, symbolgraph);
 
-  if (info.async) {
-    // TODO(https://github.com/dart-lang/native/issues/1778): Support async
-    // initializerse.
-    throw Exception("Async initializers aren't supported yet, at "
-        '${initializerSymbolJson.path}');
-  }
-
   return InitializerDeclaration(
     id: id,
+    availability: parseAvailability(initializerSymbolJson),
     params: info.params,
     hasObjCAnnotation: parseSymbolHasObjcAnnotation(initializerSymbolJson),
     isOverriding: parseIsOverriding(initializerSymbolJson),

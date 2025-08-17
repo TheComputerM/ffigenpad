@@ -1,3 +1,11 @@
+## 2.1.5-wip
+
+- Update to the latest lints.
+
+## 2.1.4
+
+- Require Dart 3.7.0 or greater to opt in to tall style formatting.
+
 ## 2.1.3
 
 - Use `package:dart_flutter_team_lints`.

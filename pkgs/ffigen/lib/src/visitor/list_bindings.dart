@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../code_generator.dart';
-import '../config_provider/config.dart' show Config;
+import '../config_provider/config.dart' show FfiGen;
 import '../config_provider/config_types.dart' show Language;
 import '../strings.dart' as strings;
 
@@ -17,15 +17,18 @@ enum _IncludeBehavior {
 }
 
 class ListBindingsVisitation extends Visitation {
-  final Config config;
+  final FfiGen config;
   final Set<Binding> includes;
   final Set<Binding> transitives;
   final Set<Binding> directTransitives;
   final bindings = <Binding>{};
 
-  ListBindingsVisitation(this.config, this.includes,
-      Set<Binding> indirectTransitives, this.directTransitives)
-      : transitives = {...indirectTransitives, ...directTransitives};
+  ListBindingsVisitation(
+    this.config,
+    this.includes,
+    Set<Binding> indirectTransitives,
+    this.directTransitives,
+  ) : transitives = {...indirectTransitives, ...directTransitives};
 
   void _add(Binding node) {
     node.visitChildren(visitor);
@@ -60,12 +63,15 @@ class ListBindingsVisitation extends Visitation {
 
   @override
   void visitObjCInterface(ObjCInterface node) {
-    if (!_visitImpl(
-            node,
-            config.includeTransitiveObjCInterfaces
-                ? _IncludeBehavior.configOrTransitive
-                : _IncludeBehavior.configOnly) &&
-        directTransitives.contains(node)) {
+    final omit =
+        node.unavailable ||
+        !_visitImpl(
+          node,
+          config.includeTransitiveObjCInterfaces
+              ? _IncludeBehavior.configOrTransitive
+              : _IncludeBehavior.configOnly,
+        );
+    if (omit && directTransitives.contains(node)) {
       node.generateAsStub = true;
       bindings.add(node);
     }
@@ -73,25 +79,36 @@ class ListBindingsVisitation extends Visitation {
 
   @override
   void visitObjCCategory(ObjCCategory node) => _visitImpl(
-      node,
-      config.includeTransitiveObjCCategories
-          ? _IncludeBehavior.configOrDirectTransitive
-          : _IncludeBehavior.configOnly);
+    node,
+    config.includeTransitiveObjCCategories
+        ? _IncludeBehavior.configOrDirectTransitive
+        : _IncludeBehavior.configOnly,
+  );
 
   @override
-  void visitObjCProtocol(ObjCProtocol node) => _visitImpl(
-      node,
-      config.includeTransitiveObjCProtocols
-          ? _IncludeBehavior.configOrTransitive
-          : _IncludeBehavior.configOnly);
+  void visitObjCProtocol(ObjCProtocol node) {
+    final omit =
+        node.unavailable ||
+        !_visitImpl(
+          node,
+          config.includeTransitiveObjCProtocols
+              ? _IncludeBehavior.configOrTransitive
+              : _IncludeBehavior.configOnly,
+        );
+    if (omit && directTransitives.contains(node)) {
+      node.generateAsStub = true;
+      bindings.add(node);
+    }
+  }
 
   @override
   void visitTypealias(Typealias node) {
     _visitImpl(
-        node,
-        config.includeUnusedTypedefs
-            ? _IncludeBehavior.configOnly
-            : _IncludeBehavior.configAndTransitive);
+      node,
+      config.includeUnusedTypedefs
+          ? _IncludeBehavior.configOnly
+          : _IncludeBehavior.configAndTransitive,
+    );
 
     // Objective C has some core typedefs that are important to keep.
     if (config.language == Language.objc &&

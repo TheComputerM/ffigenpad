@@ -7,6 +7,7 @@ import 'package:ffigen/src/config_provider/config.dart';
 import 'package:ffigen/src/config_provider/config_types.dart';
 import 'package:ffigen/src/header_parser.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 import '../test_utils.dart';
@@ -17,19 +18,31 @@ void main() {
       logWarnings(Level.SEVERE);
     });
     test('Libclang test', () {
-      final config = Config(
+      final includeDir = path.join(
+        packagePathForTests,
+        'third_party',
+        'libclang',
+        'include',
+      );
+      final config = FfiGen(
+        Logger.root,
         wrapperName: 'LibClang',
         wrapperDocComment: 'Bindings to LibClang.',
         output: Uri.file('unused'),
-        compilerOpts: [
-          ...defaultCompilerOpts(),
-          '-Ithird_party/libclang/include',
+        compilerOpts: [...defaultCompilerOpts(Logger.root), '-I$includeDir'],
+        commentType: CommentType(CommentStyle.doxygen, CommentLength.brief),
+        entryPoints: [
+          Uri.file(
+            path.join(
+              packagePathForTests,
+              'third_party',
+              'libclang',
+              'include',
+              'clang-c',
+              'Index.h',
+            ),
+          ),
         ],
-        commentType: CommentType(
-          CommentStyle.doxygen,
-          CommentLength.brief,
-        ),
-        entryPoints: [Uri.file('third_party/libclang/include/clang-c/Index.h')],
         shouldIncludeHeaderFunc: (Uri header) => [
           'BuildSystem.h',
           'CXCompilationDatabase.h',
@@ -51,7 +64,7 @@ void main() {
 // ignore_for_file: camel_case_types, non_constant_identifier_names
 ''',
       );
-      final library = parse(config);
+      final library = parse(testContext(config));
 
       matchLibraryWithExpected(
         library,
@@ -65,11 +78,21 @@ void main() {
     });
 
     test('CJSON test', () {
-      final config = Config(
+      final config = FfiGen(
+        Logger.root,
         wrapperName: 'CJson',
         wrapperDocComment: 'Bindings to Cjson.',
         output: Uri.file('unused'),
-        entryPoints: [Uri.file('third_party/cjson_library/cJSON.h')],
+        entryPoints: [
+          Uri.file(
+            path.join(
+              packagePathForTests,
+              'third_party',
+              'cjson_library',
+              'cJSON.h',
+            ),
+          ),
+        ],
         shouldIncludeHeaderFunc: (Uri header) =>
             header.pathSegments.last == 'cJSON.h',
         functionDecl: DeclarationFilters.includeAll,
@@ -80,27 +103,34 @@ void main() {
 // ignore_for_file: camel_case_types, non_constant_identifier_names
 ''',
       );
-      final library = parse(config);
+      final library = parse(testContext(config));
 
-      matchLibraryWithExpected(
-        library,
-        'large_test_cjson.dart',
-        ['test', 'large_integration_tests', '_expected_cjson_bindings.dart'],
-      );
+      matchLibraryWithExpected(library, 'large_test_cjson.dart', [
+        'test',
+        'large_integration_tests',
+        '_expected_cjson_bindings.dart',
+      ]);
     });
 
     test('SQLite test', () {
       // Excluding functions that use 'va_list' because it can either be a
       // Pointer<__va_list_tag> or int depending on the OS.
-      final config = Config(
+      final config = FfiGen(
+        Logger.root,
         wrapperName: 'SQLite',
         wrapperDocComment: 'Bindings to SQLite.',
         output: Uri.file('unused'),
-        commentType: CommentType(
-          CommentStyle.any,
-          CommentLength.full,
-        ),
-        entryPoints: [Uri.file('third_party/sqlite/sqlite3.h')],
+        commentType: CommentType(CommentStyle.any, CommentLength.full),
+        entryPoints: [
+          Uri.file(
+            path.join(
+              packagePathForTests,
+              'third_party',
+              'sqlite',
+              'sqlite3.h',
+            ),
+          ),
+        ],
         shouldIncludeHeaderFunc: (Uri header) =>
             header.pathSegments.last == 'sqlite3.h',
         functionDecl: DeclarationFilters(
@@ -118,13 +148,13 @@ void main() {
 // ignore_for_file: camel_case_types, non_constant_identifier_names
 ''',
       );
-      final library = parse(config);
+      final library = parse(testContext(config));
 
-      matchLibraryWithExpected(
-        library,
-        'large_test_sqlite.dart',
-        ['test', 'large_integration_tests', '_expected_sqlite_bindings.dart'],
-      );
+      matchLibraryWithExpected(library, 'large_test_sqlite.dart', [
+        'test',
+        'large_integration_tests',
+        '_expected_sqlite_bindings.dart',
+      ]);
     });
   });
 }

@@ -3,12 +3,12 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../code_generator.dart';
-import '../config_provider/config.dart' show Config, DeclarationFilters;
+import '../config_provider/config.dart' show DeclarationFilters, FfiGen;
 
 import 'ast.dart';
 
 class ApplyConfigFiltersVisitation extends Visitation {
-  final Config config;
+  final FfiGen config;
   final directlyIncluded = <Binding>{};
   final indirectlyIncluded = <Binding>{};
   ApplyConfigFiltersVisitation(this.config);
@@ -38,8 +38,11 @@ class ApplyConfigFiltersVisitation extends Visitation {
 
   @override
   void visitObjCInterface(ObjCInterface node) {
+    if (node.unavailable) return;
+
     node.filterMethods(
-        (m) => config.objcInterfaces.shouldIncludeMember(node, m.originalName));
+      (m) => config.objcInterfaces.shouldIncludeMember(node, m.originalName),
+    );
     _visitImpl(node, config.objcInterfaces);
 
     // If this node is included, include all its super types.
@@ -61,6 +64,8 @@ class ApplyConfigFiltersVisitation extends Visitation {
 
   @override
   void visitObjCProtocol(ObjCProtocol node) {
+    if (node.unavailable) return;
+
     node.filterMethods((m) {
       // TODO(https://github.com/dart-lang/native/issues/1149): Support class
       // methods on protocols if there's a use case. For now filter them. We

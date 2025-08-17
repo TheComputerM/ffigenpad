@@ -16,30 +16,35 @@ void main() {
     setUpAll(() {
       logWarnings();
       actual = parser.parse(
-        testConfig('''
+        testContext(
+          testConfig('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'Imported types test'
 ${strings.output}: 'unused'
 
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/imported_types.h'
+    - '${absPath('test/header_parser_tests/imported_types.h')}'
   ${strings.includeDirectives}:
     - '**imported_types.h'
 
 ${strings.preamble}: |
   // ignore_for_file: camel_case_types
         '''),
+        ),
       );
     });
     test('Expected Bindings', () {
       matchLibraryWithExpected(
-          actual, 'header_parser_imported_types_test_output.dart', [
-        'test',
-        'header_parser_tests',
-        'expected_bindings',
-        '_expected_imported_types_bindings.dart'
-      ]);
+        actual,
+        'header_parser_imported_types_test_output.dart',
+        [
+          'test',
+          'header_parser_tests',
+          'expected_bindings',
+          '_expected_imported_types_bindings.dart',
+        ],
+      );
     });
   });
 }

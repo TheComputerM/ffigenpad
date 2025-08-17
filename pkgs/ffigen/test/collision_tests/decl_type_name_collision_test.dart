@@ -16,27 +16,32 @@ void main() {
     setUpAll(() {
       logWarnings(Level.SEVERE);
       actual = parser.parse(
-        testConfig('''
+        testContext(
+          testConfig('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'Decl type name collision test'
 ${strings.output}: 'unused'
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/collision_tests/decl_type_name_collision.h'
+    - '${absPath('test/collision_tests/decl_type_name_collision.h')}'
 ${strings.preamble}: |
     // ignore_for_file: non_constant_identifier_names, 
         '''),
+        ),
       );
     });
 
     test('Expected bindings', () {
       matchLibraryWithExpected(
-          actual, 'decl_type_name_collision_test_output.dart', [
-        'test',
-        'collision_tests',
-        'expected_bindings',
-        '_expected_decl_type_name_collision_bindings.dart'
-      ]);
+        actual,
+        'decl_type_name_collision_test_output.dart',
+        [
+          'test',
+          'collision_tests',
+          'expected_bindings',
+          '_expected_decl_type_name_collision_bindings.dart',
+        ],
+      );
     });
   });
 }

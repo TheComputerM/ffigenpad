@@ -2,13 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-@OnPlatform({
-  'mac-os': Timeout.factor(2),
-  'windows': Timeout.factor(10),
-})
+@OnPlatform({'mac-os': Timeout.factor(2), 'windows': Timeout.factor(10)})
 library;
 
+import 'package:code_assets/code_assets.dart';
 import 'package:collection/collection.dart';
+import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/src/cbuilder/compiler_resolver.dart';
 import 'package:native_toolchain_c/src/native_toolchain/apple_clang.dart';
 import 'package:native_toolchain_c/src/native_toolchain/clang.dart';
@@ -38,7 +37,7 @@ void main() {
       ...await lld.defaultResolver!.resolve(logger: logger),
     ].first.uri;
     final envScript = [
-      ...await msvc.vcvars64.defaultResolver!.resolve(logger: logger)
+      ...await msvc.vcvars64.defaultResolver!.resolve(logger: logger),
     ].firstOrNull?.uri;
 
     final targetOS = OS.current;
@@ -47,38 +46,37 @@ void main() {
         packageName: 'dummy',
         packageRoot: tempUri,
         outputFile: tempUri.resolve('output.json'),
-        outputDirectory: tempUri,
         outputDirectoryShared: tempUri2,
       )
-      ..config.setupBuild(
-        linkingEnabled: false,
-        dryRun: false,
-      )
-      ..config.setupShared(buildAssetTypes: [CodeAsset.type])
-      ..config.setupCode(
-        targetOS: targetOS,
-        macOS: targetOS == OS.macOS
-            ? MacOSCodeConfig(targetVersion: defaultMacOSVersion)
-            : null,
-        targetArchitecture: Architecture.current,
-        linkModePreference: LinkModePreference.dynamic,
-        cCompiler: CCompilerConfig(
-          archiver: ar,
-          compiler: cc,
-          linker: ld,
-          windows: targetOS == OS.windows
-              ? WindowsCCompilerConfig(
-                  developerCommandPrompt: DeveloperCommandPrompt(
-                    script: envScript!,
-                    arguments: [],
-                  ),
-                )
+      ..config.setupBuild(linkingEnabled: false)
+      ..addExtension(
+        CodeAssetExtension(
+          targetOS: targetOS,
+          macOS: targetOS == OS.macOS
+              ? MacOSCodeConfig(targetVersion: defaultMacOSVersion)
               : null,
+          targetArchitecture: Architecture.current,
+          linkModePreference: LinkModePreference.dynamic,
+          cCompiler: CCompilerConfig(
+            archiver: ar,
+            compiler: cc,
+            linker: ld,
+            windows: targetOS == OS.windows
+                ? WindowsCCompilerConfig(
+                    developerCommandPrompt: DeveloperCommandPrompt(
+                      script: envScript!,
+                      arguments: [],
+                    ),
+                  )
+                : null,
+          ),
         ),
       );
-    final buildInput = BuildInput(buildInputBuilder.json);
-    final resolver =
-        CompilerResolver(codeConfig: buildInput.config.code, logger: logger);
+    final buildInput = buildInputBuilder.build();
+    final resolver = CompilerResolver(
+      codeConfig: buildInput.config.code,
+      logger: logger,
+    );
     final compiler = await resolver.resolveCompiler();
     final archiver = await resolver.resolveArchiver();
     expect(compiler.uri, buildInput.config.code.cCompiler?.compiler);
@@ -100,21 +98,18 @@ void main() {
         packageRoot: tempUri,
         outputFile: tempUri.resolve('output.json'),
         outputDirectoryShared: tempUri2,
-        outputDirectory: tempUri,
       )
-      ..config.setupBuild(
-        linkingEnabled: false,
-        dryRun: false,
-      )
-      ..config.setupShared(buildAssetTypes: [CodeAsset.type])
-      ..config.setupCode(
-        targetOS: OS.windows,
-        targetArchitecture: Architecture.arm64,
-        linkModePreference: LinkModePreference.dynamic,
-        cCompiler: cCompiler,
+      ..config.setupBuild(linkingEnabled: false)
+      ..addExtension(
+        CodeAssetExtension(
+          targetOS: OS.windows,
+          targetArchitecture: Architecture.arm64,
+          linkModePreference: LinkModePreference.dynamic,
+          cCompiler: cCompiler,
+        ),
       );
 
-    final buildInput = BuildInput(buildInputBuilder.json);
+    final buildInput = buildInputBuilder.build();
 
     final resolver = CompilerResolver(
       codeConfig: buildInput.config.code,

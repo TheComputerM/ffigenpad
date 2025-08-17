@@ -17,14 +17,15 @@ void main() {
     setUpAll(() {
       logWarnings(Level.SEVERE);
       actual = parser.parse(
-        testConfig('''
+        testContext(
+          testConfig('''
 ${strings.name}: 'Bindings'
 ${strings.description}: 'Typedef Test'
 ${strings.output}: 'unused'
 
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/typedef.h'
+    - '${absPath('test/header_parser_tests/typedef.h')}'
   ${strings.includeDirectives}:
     - '**typedef.h'
 ${strings.structs}:
@@ -44,17 +45,21 @@ ${strings.typeMap}:
 ${strings.preamble}: |
   // ignore_for_file: unused_element, unused_field
         '''),
+        ),
       );
     });
 
     test('Expected Bindings', () {
       matchLibraryWithExpected(
-          actual, 'header_parser_typedef_test_output.dart', [
-        'test',
-        'header_parser_tests',
-        'expected_bindings',
-        '_expected_typedef_bindings.dart'
-      ]);
+        actual,
+        'header_parser_typedef_test_output.dart',
+        [
+          'test',
+          'header_parser_tests',
+          'expected_bindings',
+          '_expected_typedef_bindings.dart',
+        ],
+      );
     });
   });
 }

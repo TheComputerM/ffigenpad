@@ -18,7 +18,8 @@ void main() {
     setUpAll(() {
       logWarnings();
       actual = parser.parse(
-        testConfig('''
+        testContext(
+          testConfig('''
 ${strings.name}: 'NativeLibrary'
 ${strings.description}: 'Dart_Handle Test'
 ${strings.output}: 'unused'
@@ -26,20 +27,24 @@ ${strings.compilerOpts}: '-I${path.join(sdkPath, "include")}'
 
 ${strings.headers}:
   ${strings.entryPoints}:
-    - 'test/header_parser_tests/dart_handle.h'
+    - '${absPath('test/header_parser_tests/dart_handle.h')}'
   ${strings.includeDirectives}:
     - '**dart_handle.h'
         '''),
+        ),
       );
     });
     test('Expected Bindings', () {
       matchLibraryWithExpected(
-          actual, 'header_parser_dart_handle_test_output.dart', [
-        'test',
-        'header_parser_tests',
-        'expected_bindings',
-        '_expected_dart_handle_bindings.dart'
-      ]);
+        actual,
+        'header_parser_dart_handle_test_output.dart',
+        [
+          'test',
+          'header_parser_tests',
+          'expected_bindings',
+          '_expected_dart_handle_bindings.dart',
+        ],
+      );
     });
   }, skip: isFlutterTester);
 }

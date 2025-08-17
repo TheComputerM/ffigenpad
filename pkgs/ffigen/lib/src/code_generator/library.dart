@@ -4,12 +4,13 @@
 
 import 'dart:io';
 
-import 'package:dart_style/dart_style.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
 import '../code_generator.dart';
-import '../config_provider/config.dart' show Config;
+import '../code_generator/utils.dart';
+import '../config_provider/config.dart' show FfiGen;
 import '../config_provider/config_types.dart';
+import '../context.dart';
 
 import 'writer.dart';
 
@@ -19,24 +20,27 @@ class Library {
   final List<Binding> bindings;
 
   final Writer writer;
+  final Context context;
 
-  Library._(this.bindings, this.writer);
+  Library._(this.bindings, this.writer, this.context);
 
   static Library fromConfig({
-    required Config config,
+    required FfiGen config,
     required List<Binding> bindings,
-  }) =>
-      Library(
-        name: config.wrapperName,
-        description: config.wrapperDocComment,
-        bindings: bindings,
-        header: config.preamble,
-        generateForPackageObjectiveC: config.generateForPackageObjectiveC,
-        libraryImports: config.libraryImports.values.toList(),
-        silenceEnumWarning: config.silenceEnumWarning,
-        nativeEntryPoints:
-            config.entryPoints.map((uri) => uri.toFilePath()).toList(),
-      );
+    required Context context,
+  }) => Library(
+    name: config.wrapperName,
+    description: config.wrapperDocComment,
+    bindings: bindings,
+    header: config.preamble,
+    generateForPackageObjectiveC: config.generateForPackageObjectiveC,
+    libraryImports: config.libraryImports.values.toList(),
+    silenceEnumWarning: config.silenceEnumWarning,
+    nativeEntryPoints: config.entryPoints
+        .map((uri) => uri.toFilePath())
+        .toList(),
+    context: context,
+  );
 
   factory Library({
     required String name,
@@ -47,6 +51,7 @@ class Library {
     List<LibraryImport> libraryImports = const <LibraryImport>[],
     bool silenceEnumWarning = false,
     List<String> nativeEntryPoints = const <String>[],
+    required Context context,
   }) {
     // Seperate bindings which require lookup.
     final lookupBindings = <LookUpBinding>[];
@@ -81,9 +86,10 @@ class Library {
       generateForPackageObjectiveC: generateForPackageObjectiveC,
       silenceEnumWarning: silenceEnumWarning,
       nativeEntryPoints: nativeEntryPoints,
+      context: context,
     );
 
-    return Library._(bindings, writer);
+    return Library._(bindings, writer, context);
   }
 
   /// Generates [file] by generating C bindings.
@@ -92,14 +98,18 @@ class Library {
   /// generated file.
   void generateFile(File file, {bool format = true}) {
     if (!file.existsSync()) file.createSync(recursive: true);
-    var bindings = generate();
+    file.writeAsStringSync(generate());
     if (format) {
-      final formatter = DartFormatter(
-        languageVersion: DartFormatter.latestShortStyleLanguageVersion,
-      );
-      bindings = formatter.format(bindings);
+      final result = Process.runSync(dartExecutable, [
+        'format',
+        file.absolute.path,
+      ], workingDirectory: file.parent.absolute.path);
+      if (result.exitCode != 0) {
+        context.logger.severe(
+          'Formatting failed\n${result.stdout}\n${result.stderr}',
+        );
+      }
     }
-    file.writeAsStringSync(bindings);
   }
 
   /// Generates [file] with the Objective C code needed for the bindings, if

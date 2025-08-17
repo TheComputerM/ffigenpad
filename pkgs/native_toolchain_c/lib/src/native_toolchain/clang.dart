@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:native_assets_cli/code_assets.dart';
+import 'package:code_assets/code_assets.dart';
 
 import '../tool/tool.dart';
 import '../tool/tool_resolver.dart';
@@ -29,9 +29,7 @@ final Tool clang = Tool(
         ),
         InstallLocationResolver(
           toolName: 'Clang',
-          paths: [
-            'C:/Program Files/LLVM/bin/clang.exe',
-          ],
+          paths: ['C:/Program Files/LLVM/bin/clang.exe'],
         ),
       ]),
     ),
@@ -50,6 +48,10 @@ final Tool llvmAr = Tool(
         wrappedResolver: clang.defaultResolver!,
         relativePath: Uri.file(OS.current.executableFileName('llvm-ar')),
       ),
+      PathToolResolver(
+        toolName: 'LLVM archiver',
+        executableName: OS.current.executableFileName('llvm-ar'),
+      ),
     ]),
   ),
 );
@@ -65,6 +67,10 @@ final Tool lld = Tool(
         toolName: 'LLD',
         wrappedResolver: clang.defaultResolver!,
         relativePath: Uri.file(OS.current.executableFileName('ld.lld')),
+      ),
+      PathToolResolver(
+        toolName: 'LLD',
+        executableName: OS.current.executableFileName('ld.lld'),
       ),
     ]),
   ),

@@ -1,4 +1,11 @@
+// Copyright (c) 2024, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import '../../ast/_core/interfaces/declaration.dart';
 import '../../ast/_core/interfaces/variable_declaration.dart';
+import '../../ast/_core/shared/referred_type.dart';
+import '../../ast/declarations/compounds/members/method_declaration.dart';
 import '../../ast/declarations/compounds/members/property_declaration.dart';
 import '../../ast/declarations/globals/globals.dart';
 import '../_core/unique_namer.dart';
@@ -13,7 +20,7 @@ import 'transform_referred_type.dart';
 // through the wrapped class instance in the wrapper class. In global variable
 // case, it can be  referenced directly since it's not a member of any entity.
 
-PropertyDeclaration? transformProperty(
+Declaration? transformProperty(
   PropertyDeclaration originalProperty,
   PropertyDeclaration wrappedClassInstance,
   UniqueNamer globalNamer,
@@ -31,12 +38,13 @@ PropertyDeclaration? transformProperty(
     originalProperty,
     globalNamer,
     transformationMap,
+    property: true,
     wrapperPropertyName: originalProperty.name,
     variableReferenceExpression: '$propertySource.${originalProperty.name}',
   );
 }
 
-PropertyDeclaration transformGlobalVariable(
+Declaration transformGlobalVariable(
   GlobalVariableDeclaration globalVariable,
   UniqueNamer globalNamer,
   TransformationMap transformationMap,
@@ -54,10 +62,11 @@ PropertyDeclaration transformGlobalVariable(
 
 // -------------------------- Core Implementation --------------------------
 
-PropertyDeclaration _transformVariable(
+Declaration _transformVariable(
   VariableDeclaration originalVariable,
   UniqueNamer globalNamer,
   TransformationMap transformationMap, {
+  bool property = false,
   required String wrapperPropertyName,
   required String variableReferenceExpression,
 }) {
@@ -71,9 +80,43 @@ PropertyDeclaration _transformVariable(
       ? originalVariable.hasSetter
       : !originalVariable.isConstant;
 
+  // properties that throw or are async need to be wrapped in a method
+  if (originalVariable.throws || originalVariable.async) {
+    final prefix = [
+      if (originalVariable.throws) 'try',
+      if (originalVariable.async) 'await'
+    ].join(' ');
+
+    final localNamer = UniqueNamer();
+    final resultName = localNamer.makeUnique('result');
+
+    final (wrapperResult, type) = maybeWrapValue(
+        originalVariable.type, resultName, globalNamer, transformationMap,
+        shouldWrapPrimitives: originalVariable.throws);
+
+    return MethodDeclaration(
+      id: originalVariable.id,
+      name: wrapperPropertyName,
+      availability: originalVariable.availability,
+      returnType: type,
+      params: [],
+      hasObjCAnnotation: true,
+      isStatic: originalVariable is PropertyDeclaration
+          ? originalVariable.isStatic
+          : true,
+      statements: [
+        'let $resultName = $prefix $variableReferenceExpression',
+        'return $wrapperResult',
+      ],
+      throws: originalVariable.throws,
+      async: originalVariable.async,
+    );
+  }
+
   final transformedProperty = PropertyDeclaration(
     id: originalVariable.id,
     name: wrapperPropertyName,
+    availability: originalVariable.availability,
     type: transformedType,
     hasObjCAnnotation: true,
     hasSetter: shouldGenerateSetter,
@@ -83,6 +126,13 @@ PropertyDeclaration _transformVariable(
     isConstant: originalVariable.isConstant,
     throws: originalVariable.throws,
     async: originalVariable.async,
+    unowned: originalVariable is PropertyDeclaration
+        ? originalVariable.unowned
+        : false,
+    lazy:
+        originalVariable is PropertyDeclaration ? originalVariable.lazy : false,
+    weak:
+        originalVariable is PropertyDeclaration ? originalVariable.weak : false,
   );
 
   final getterStatements = _generateGetterStatements(

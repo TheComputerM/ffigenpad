@@ -2,15 +2,15 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:logging/logging.dart';
-
 import '../code_generator.dart';
-
+import '../context.dart';
 import 'ast.dart';
 
-final _logger = Logger('ffigen.visitor.FixOverriddenMethodsVisitation');
-
 class FixOverriddenMethodsVisitation extends Visitation {
+  final Context context;
+
+  FixOverriddenMethodsVisitation(this.context);
+
   @override
   void visitObjCInterface(ObjCInterface node) {
     // Visit the supertype, then perform all AST mutations, then visit the other
@@ -26,7 +26,9 @@ class FixOverriddenMethodsVisitation extends Visitation {
   }
 
   (ObjCInterface?, ObjCMethod?) _findNearestWithMethod(
-      ObjCInterface node, ObjCMethod method) {
+    ObjCInterface node,
+    ObjCMethod method,
+  ) {
     for (var t = node.superType; t != null; t = t.superType) {
       final tMethod = t.getSimilarMethod(method);
       if (tMethod != null) {
@@ -36,8 +38,12 @@ class FixOverriddenMethodsVisitation extends Visitation {
     return (null, null);
   }
 
-  void _fixContravariantReturns(ObjCInterface node, ObjCMethod method,
-      ObjCInterface superType, ObjCMethod superMethod) {
+  void _fixContravariantReturns(
+    ObjCInterface node,
+    ObjCMethod method,
+    ObjCInterface superType,
+    ObjCMethod superMethod,
+  ) {
     // In Dart, method return types are covariant, but ObjC allows them to be
     // contravariant. So fix these cases by changing the supertype's return type
     // to match the subtype's return type.
@@ -49,36 +55,47 @@ class FixOverriddenMethodsVisitation extends Visitation {
 
     if (!superMethod.returnType.isSubtypeOf(method.returnType)) {
       // Types are unrelated, so this can't be sensibly fixed.
-      _logger.severe(
-          '${node.originalName} is a subtype of ${superType.originalName} but '
-          'the return types of their ${method.originalName} methods are '
-          'unrelated');
+      context.logger.severe(
+        '${node.originalName} is a subtype of ${superType.originalName} but '
+        'the return types of their ${method.originalName} methods are '
+        'unrelated',
+      );
       return;
     }
 
     superMethod.returnType = method.returnType;
-    _logger.info('Changed the return type of '
-        '${superType.originalName}.${superMethod.originalName} to '
-        '${method.returnType} to match ${node.originalName}');
+    context.logger.info(
+      'Changed the return type of '
+      '${superType.originalName}.${superMethod.originalName} to '
+      '${method.returnType} to match ${node.originalName}',
+    );
 
-    final (superSuperType, superSuperMethod) =
-        _findNearestWithMethod(superType, superMethod);
+    final (superSuperType, superSuperMethod) = _findNearestWithMethod(
+      superType,
+      superMethod,
+    );
     if (superSuperType != null && superSuperMethod != null) {
       _fixContravariantReturns(node, method, superSuperType, superSuperMethod);
     }
   }
 
-  void _fixCoavariantArgs(ObjCInterface node, ObjCMethod method,
-      ObjCInterface superType, ObjCMethod superMethod) {
+  void _fixCoavariantArgs(
+    ObjCInterface node,
+    ObjCMethod method,
+    ObjCInterface superType,
+    ObjCMethod superMethod,
+  ) {
     // In Dart, method arg types are contravariant, but ObjC allows them to be
     // covariant. So fix these cases by adding the `covariant` keyword to the
     // parameter.
+    final logger = context.logger;
     final n = method.params.length;
     if (n != superMethod.params.length) {
-      _logger.severe(
-          '${node.originalName} is a subtype of ${superType.originalName} but '
-          'their ${method.originalName} methods have a different number of '
-          'parameters');
+      logger.severe(
+        '${node.originalName} is a subtype of ${superType.originalName} but '
+        'their ${method.originalName} methods have a different number of '
+        'parameters',
+      );
       return;
     }
 
@@ -93,16 +110,19 @@ class FixOverriddenMethodsVisitation extends Visitation {
 
       if (!pt.isSubtypeOf(st)) {
         // Types are unrelated, so this can't be sensibly fixed.
-        _logger.severe(
-            '${node.originalName} is a subtype of ${superType.originalName} '
-            'but their ${method.originalName} methods have a parameter at '
-            'position ${i + 1} with an unrelated type');
+        logger.severe(
+          '${node.originalName} is a subtype of ${superType.originalName} '
+          'but their ${method.originalName} methods have a parameter at '
+          'position ${i + 1} with an unrelated type',
+        );
         return;
       }
 
-      _logger.info('Set the parameter of '
-          '${node.originalName}.${method.originalName} at position ${i + 1} to '
-          'be covariant');
+      logger.info(
+        'Set the parameter of '
+        '${node.originalName}.${method.originalName} at position ${i + 1} to '
+        'be covariant',
+      );
       method.params[i].isCovariant = true;
     }
   }
@@ -138,7 +158,9 @@ class FixOverriddenMethodsVisitation extends Visitation {
   }
 
   (ObjCInterface, ObjCMethod) _findRootWithMethod(
-      ObjCInterface node, ObjCMethod method) {
+    ObjCInterface node,
+    ObjCMethod method,
+  ) {
     var root = node;
     var rootMethod = method;
     for (ObjCInterface? t = node; t != null; t = t.superType) {
@@ -152,12 +174,15 @@ class FixOverriddenMethodsVisitation extends Visitation {
   }
 
   void _convertAllSubtreeMethodsToProperties(
-      ObjCInterface node, ObjCMethod rootMethod) {
+    ObjCInterface node,
+    ObjCMethod rootMethod,
+  ) {
     final method = node.getSimilarMethod(rootMethod);
     if (method != null && method.kind == ObjCMethodKind.method) {
       method.kind = ObjCMethodKind.propertyGetter;
-      _logger.info(
-          'Converted ${node.originalName}.${method.originalName} to a getter');
+      context.logger.info(
+        'Converted ${node.originalName}.${method.originalName} to a getter',
+      );
     }
     for (final t in node.subtypes) {
       _convertAllSubtreeMethodsToProperties(t, rootMethod);
